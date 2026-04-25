@@ -1,73 +1,78 @@
-# React + TypeScript + Vite
+# Vondera Clothing Brand E-commerce
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A premium, minimal e-commerce storefront built for clothing brands, powered by the Vondera API. This project features a modern design aesthetic with smooth animations, dynamic category handling, and a fully functional shopping experience.
 
-Currently, two official plugins are available:
+## ✨ Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Dynamic Home Page**: Hero sections, featured categories (fetched from API), and new arrivals.
+- **Advanced Shop Filtering**: Filter products by category, sort by price, and load more products dynamically.
+- **Modern UI/UX**: Built with Tailwind CSS, custom animations (GSAP, ScrollReveal), and a premium "sand & taupe" color palette.
+- **Cart System**: Fully functional cart with persistent storage, variant support, and quantity management.
+- **Mobile Responsive**: Optimised for all screen sizes with a custom mobile navigation menu.
+- **SEO Ready**: Semantic HTML and descriptive metadata.
 
-## React Compiler
+## 🚀 Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
 
-## Expanding the ESLint configuration
+- Node.js (v18 or higher recommended)
+- npm or yarn
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Installation
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Configuration
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Create a `.env` file in the root directory and add your Vondera API key:
+
+```env
+VITE_VONDERA_API_KEY=your_api_key_here
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Start the development server:
+```bash
+npm run dev
 ```
+The app will be available at `http://localhost:3000`.
+
+### Build
+
+Create a production build:
+```bash
+npm run build
+```
+
+## 📂 Project Structure
+
+- `src/components`: Reusable UI components (ProductCard, Nav, Footer, etc.).
+- `src/sections`: Page sections for Home and Shop pages.
+- `src/pages`: Main page components (Home, Shop, ProductDetail, Cart, etc.).
+- `src/lib`: API integration and mock data.
+- `src/hooks`: Custom React hooks for state management (Zustand).
+- `src/types`: TypeScript definitions for Vondera API objects.
+
+## 🛠 Tech Stack
+
+- **Framework**: React 19 + Vite
+- **Styling**: Tailwind CSS
+- **Animations**: GSAP, Framer Motion (ScrollReveal)
+- **State Management**: Zustand
+- **Icons**: Lucide React
+- **API**: Vondera Public API
+
+## 📝 Recent Updates
+
+- **Dynamic Categories**: Home page categories are now fetched directly from the Vondera API.
+- **ID-Based Filtering**: Shop page filtering has been upgraded to use category IDs for better reliability and performance.
+- **Premium Aesthetics**: Refined shadows, gradients, and micro-animations across the site.
+
+---
+
+Built with ❤️ by [Antigravity](https://google.com)
