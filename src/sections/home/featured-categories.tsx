@@ -1,13 +1,37 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ScrollReveal } from '@/components/shared/scroll-reveal';
-
-const categories = [
-  { name: 'Outerwear', image: '/category-outerwear.jpg', to: '/shop?category=outerwear' },
-  { name: 'Knitwear', image: '/category-knitwear.jpg', to: '/shop?category=knitwear' },
-  { name: 'Accessories', image: '/category-accessories.jpg', to: '/shop?category=accessories' },
-];
+import { fetchCategories } from '@/lib/vondera-api';
+import type { VonderaCategory } from '@/types';
 
 export function FeaturedCategories() {
+  const [categories, setCategories] = useState<VonderaCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCategories()
+      .then((data) => {
+        setCategories(data.slice(0, 3));
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="bg-sand section-padding">
+        <div className="container-main">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="aspect-[4/5] bg-cream animate-pulse" />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (categories.length === 0) return null;
+
   return (
     <section className="bg-sand section-padding">
       <div className="container-main">
@@ -17,10 +41,10 @@ export function FeaturedCategories() {
         </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {categories.map((cat) => (
-            <ScrollReveal key={cat.name} stagger={0.12}>
+          {categories.map((cat, i) => (
+            <ScrollReveal key={cat.id} stagger={i * 0.12}>
               <Link
-                to={cat.to}
+                to={`/shop?category=${cat.id}`}
                 className="group relative aspect-[4/5] overflow-hidden block"
               >
                 <img
@@ -43,3 +67,4 @@ export function FeaturedCategories() {
     </section>
   );
 }
+
