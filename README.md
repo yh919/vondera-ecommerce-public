@@ -37,14 +37,17 @@ VITE_VONDERA_API_KEY=your_api_key_here
 ### Development
 
 Start the development server:
+
 ```bash
 npm run dev
 ```
+
 The app will be available at `http://localhost:3000`.
 
 ### Build
 
 Create a production build:
+
 ```bash
 npm run build
 ```
@@ -75,4 +78,4 @@ npm run build
 
 ---
 
-Built with ❤️ by [Antigravity](https://google.com)
+Built with ❤️ by [Vondera Team](https://vondera.app)
