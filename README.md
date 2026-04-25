@@ -60,6 +60,7 @@ npm run build
 - `src/lib`: API integration and mock data.
 - `src/hooks`: Custom React hooks for state management (Zustand).
 - `src/types`: TypeScript definitions for Vondera API objects.
+- `API_DOCUMENTATION.md`: Detailed guide on Vondera API usage and payloads.
 
 ## 🛠 Tech Stack
 
