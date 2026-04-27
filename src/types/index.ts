@@ -127,22 +127,76 @@ export interface VonderaStore {
   };
 }
 
+export interface VonderaCustomer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  storeId: string;
+  createDate: {
+    _seconds: number;
+    _nanoseconds: number;
+  };
+}
+
+export interface VonderaWishlist {
+  items: VonderaProduct[];
+  isLastPage: boolean;
+  nextPageNumber: number | null;
+  currentPage: number;
+  totalPages: number;
+}
+
+export interface OrderPriceCalculation {
+  itemsPrice: number;
+  shippingFees: number;
+  discount: number;
+  gatewayFees: number;
+  totalTaxes: number;
+  totalPrice: number;
+  amountToPayLater: number;
+  autoApplyPromo: unknown;
+}
+
+export interface CheckoutInitResponse {
+  [key: string]: unknown;
+}
+
+export interface DiscountValidationResponse {
+  valid: boolean;
+  message: string;
+  discountAmount?: number;
+  discountType?: 'percent' | 'amount';
+}
+
+export interface StoreBuilderSettings {
+  updatedAt: string;
+  sections: Array<{
+    id: string;
+    enabled: boolean;
+    order: number;
+    settings: unknown;
+  }>;
+}
+
 export interface VonderaOrder {
   id: string;
   status: string;
   date: { _seconds: number; _nanoseconds: number };
+  link?: string;
   products: Array<{
     id: string;
     name: string;
-    variantId: string;
-    link: string;
-    previewImage: string;
+    variantId?: string;
+    link?: string;
+    previewImage?: string;
     itemPrice: number;
     quantity: number;
-    totalPrice: number;
-    variantDisplay: Record<string, string>;
+    totalPrice?: number;
+    variantDisplay?: Record<string, string>;
   }>;
-  payment: {
+  payment?: {
     gateway: string;
     method: string;
     paymentStatus: string;
@@ -154,8 +208,8 @@ export interface VonderaOrder {
   customer: {
     name: string;
     phone: string;
-    email: string;
+    email?: string;
     address: string;
-    gov: string;
+    gov?: string;
   };
 }

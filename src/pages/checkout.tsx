@@ -1,59 +1,105 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { ScrollReveal } from "@/components/shared/scroll-reveal";
-
-const shippingMethods = [
-  {
-    id: "standard",
-    name: "Standard Shipping",
-    price: 8,
-    days: "5-7 business days",
-  },
-  {
-    id: "express",
-    name: "Express Shipping",
-    price: 18,
-    days: "2-3 business days",
-  },
-];
-
-const paymentMethods = [
-  { id: "cod", name: "Cash on Delivery" },
-  { id: "card", name: "Credit Card" },
-];
+import { fetchStore, calculateOrderPrice, createOrder } from "@/lib/vondera-api";
+import type { VonderaStore, OrderPriceCalculation } from "@/types";
 
 export function Checkout() {
-  const { items, totalPrice } = useCart();
+  const { items, totalPrice: cartSubtotal, clearCart } = useCart();
   const navigate = useNavigate();
+  const [store, setStore] = useState<VonderaStore | null>(null);
+  const [priceData, setPriceData] = useState<OrderPriceCalculation | null>(null);
   const [form, setForm] = useState({
     email: "",
     firstName: "",
     lastName: "",
     address: "",
-    city: "",
+    cityId: "",
     state: "",
     zip: "",
     phone: "",
+    notes: "",
   });
-  const [shippingMethod, setShippingMethod] = useState("standard");
-  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [shippingMethod, setShippingMethod] = useState("SHIPPING");
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [loading, setLoading] = useState(false);
+  const [calculating, setCalculating] = useState(false);
   const [expandedItems, setExpandedItems] = useState(false);
 
-  const shipping =
-    shippingMethods.find((s) => s.id === shippingMethod)?.price || 0;
-  const total = totalPrice + shipping;
+  useEffect(() => {
+    fetchStore().then(setStore);
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const updatePrice = useCallback(async () => {
+    try {
+      setCalculating(true);
+      const data = await calculateOrderPrice({
+        cityId: form.cityId,
+        discountCode: "",
+        products: items.map(item => ({
+          id: item.productId,
+          variantId: item.variantId || "",
+          quantity: item.quantity,
+          type: "PRODUCT"
+        })),
+        pickupMethod: shippingMethod,
+        gatewayType: paymentMethod === "card" ? "CARD" : "CASH"
+      });
+      setPriceData(data);
+    } catch {
+      console.error("Failed to calculate price");
+    } finally {
+      setCalculating(false);
+    }
+  }, [items, form.cityId, shippingMethod, paymentMethod]);
+
+  useEffect(() => {
+    if (items.length > 0) {
+      updatePrice();
+    }
+  }, [items, form.cityId, shippingMethod, paymentMethod, updatePrice]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const orderData = {
+        name: `${form.firstName} ${form.lastName}`,
+        phone: form.phone,
+        otherPhone: "",
+        countryCode: "+20", // Default or from a selector
+        email: form.email,
+        address: form.address,
+        cityId: form.cityId,
+        country: store?.country || "",
+        notes: form.notes,
+        paymentMethod: paymentMethod === "card" ? "GATEWAY" : "CASH",
+        discountCode: "",
+        products: items.map(item => ({
+          id: item.productId,
+          name: item.product.name,
+          quantity: item.quantity,
+          price: item.selectedVariant?.price ?? item.product.price,
+          variantId: item.variantId || "",
+          type: "PRODUCT"
+        })),
+        pickupMethod: shippingMethod
+      };
+
+      const order = await createOrder(orderData);
+      clearCart();
+      navigate("/order-confirmation", { state: { orderId: order.id } });
+    } catch (err) {
+      alert("Failed to place order. Please try again.");
+    } finally {
       setLoading(false);
-      navigate("/order-confirmation");
-    }, 1500);
+    }
   };
+
+  const total = priceData?.totalPrice ?? (cartSubtotal + (store?.zones?.find(z => z.id === form.cityId)?.fees || 0));
+  const shipping = priceData?.shippingFees ?? (store?.zones?.find(z => z.id === form.cityId)?.fees || 0);
 
   const visibleItems = expandedItems ? items : items.slice(0, 2);
   const hiddenCount = items.length - 2;
@@ -123,29 +169,23 @@ export function Checkout() {
                   }
                   className="w-full bg-transparent border-b border-[rgba(26,20,16,0.2)] py-3 font-body text-sm outline-none focus:border-[#1A1410] transition-colors placeholder:text-taupe mt-4"
                 />
-                <div className="grid grid-cols-3 gap-4 mt-4">
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <select
+                    required
+                    value={form.cityId}
+                    onChange={(e) => setForm({ ...form, cityId: e.target.value })}
+                    className="w-full bg-transparent border-b border-[rgba(26,20,16,0.2)] py-3 font-body text-sm outline-none focus:border-[#1A1410] transition-colors"
+                  >
+                    <option value="">Select City</option>
+                    {store?.zones?.map((zone) => (
+                      <option key={zone.id} value={zone.id}>
+                        {zone.name}
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="text"
-                    placeholder="City"
-                    required
-                    value={form.city}
-                    onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    className="w-full bg-transparent border-b border-[rgba(26,20,16,0.2)] py-3 font-body text-sm outline-none focus:border-[#1A1410] transition-colors placeholder:text-taupe"
-                  />
-                  <input
-                    type="text"
-                    placeholder="State"
-                    required
-                    value={form.state}
-                    onChange={(e) =>
-                      setForm({ ...form, state: e.target.value })
-                    }
-                    className="w-full bg-transparent border-b border-[rgba(26,20,16,0.2)] py-3 font-body text-sm outline-none focus:border-[#1A1410] transition-colors placeholder:text-taupe"
-                  />
-                  <input
-                    type="text"
-                    placeholder="ZIP"
-                    required
+                    placeholder="ZIP / Postal Code"
                     value={form.zip}
                     onChange={(e) => setForm({ ...form, zip: e.target.value })}
                     className="w-full bg-transparent border-b border-[rgba(26,20,16,0.2)] py-3 font-body text-sm outline-none focus:border-[#1A1410] transition-colors placeholder:text-taupe"
@@ -169,49 +209,86 @@ export function Checkout() {
                   Shipping Method
                 </h2>
                 <div className="space-y-3">
-                  {shippingMethods.map((method) => (
-                    <label
-                      key={method.id}
-                      className={`flex items-center justify-between p-4 border cursor-pointer transition-colors ${
-                        shippingMethod === method.id
-                          ? "border-[#1A1410] bg-[rgba(26,20,16,0.03)]"
-                          : "border-[rgba(26,20,16,0.1)]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                            shippingMethod === method.id
-                              ? "border-[#1A1410]"
-                              : "border-[rgba(26,20,16,0.3)]"
-                          }`}
-                        >
-                          {shippingMethod === method.id && (
-                            <div className="w-2.5 h-2.5 rounded-full bg-[#1A1410]" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-body text-sm font-medium text-[#1A1410]">
-                            {method.name}
-                          </p>
-                          <p className="font-body text-xs text-taupe">
-                            {method.days}
-                          </p>
-                        </div>
+                  <label
+                    className={`flex items-center justify-between p-4 border cursor-pointer transition-colors ${
+                      shippingMethod === "SHIPPING"
+                        ? "border-[#1A1410] bg-[rgba(26,20,16,0.03)]"
+                        : "border-[rgba(26,20,16,0.1)]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                          shippingMethod === "SHIPPING"
+                            ? "border-[#1A1410]"
+                            : "border-[rgba(26,20,16,0.3)]"
+                        }`}
+                      >
+                        {shippingMethod === "SHIPPING" && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-[#1A1410]" />
+                        )}
                       </div>
-                      <span className="font-display text-base font-semibold text-[#1A1410]">
-                        ${method.price}
-                      </span>
-                      <input
-                        type="radio"
-                        name="shipping"
-                        value={method.id}
-                        checked={shippingMethod === method.id}
-                        onChange={() => setShippingMethod(method.id)}
-                        className="sr-only"
-                      />
-                    </label>
-                  ))}
+                      <div>
+                        <p className="font-body text-sm font-medium text-[#1A1410]">
+                          Standard Shipping
+                        </p>
+                        <p className="font-body text-xs text-taupe">
+                          Door-to-door delivery
+                        </p>
+                      </div>
+                    </div>
+                    <span className="font-display text-base font-semibold text-[#1A1410]">
+                      {shipping > 0 ? `${store?.currency} ${shipping}` : "Free"}
+                    </span>
+                    <input
+                      type="radio"
+                      name="shipping"
+                      value="SHIPPING"
+                      checked={shippingMethod === "SHIPPING"}
+                      onChange={() => setShippingMethod("SHIPPING")}
+                      className="sr-only"
+                    />
+                  </label>
+                  <label
+                    className={`flex items-center justify-between p-4 border cursor-pointer transition-colors ${
+                      shippingMethod === "PICKUP"
+                        ? "border-[#1A1410] bg-[rgba(26,20,16,0.03)]"
+                        : "border-[rgba(26,20,16,0.1)]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                          shippingMethod === "PICKUP"
+                            ? "border-[#1A1410]"
+                            : "border-[rgba(26,20,16,0.3)]"
+                        }`}
+                      >
+                        {shippingMethod === "PICKUP" && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-[#1A1410]" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-body text-sm font-medium text-[#1A1410]">
+                          Store Pickup
+                        </p>
+                        <p className="font-body text-xs text-taupe">
+                          Collect from our physical location
+                        </p>
+                      </div>
+                    </div>
+                    <span className="font-display text-base font-semibold text-[#1A1410]">
+                      Free
+                    </span>
+                    <input
+                      type="radio"
+                      name="shipping"
+                      value="PICKUP"
+                      checked={shippingMethod === "PICKUP"}
+                      onChange={() => setShippingMethod("PICKUP")}
+                      className="sr-only"
+                    />
+                  </label>
                 </div>
               </div>
             </ScrollReveal>
@@ -223,49 +300,76 @@ export function Checkout() {
                   Payment
                 </h2>
                 <div className="space-y-3">
-                  {paymentMethods.map((method) => (
-                    <label
-                      key={method.id}
-                      className={`flex items-center gap-3 p-4 border cursor-pointer transition-colors ${
-                        paymentMethod === method.id
-                          ? "border-[#1A1410] bg-[rgba(26,20,16,0.03)]"
-                          : "border-[rgba(26,20,16,0.1)]"
+                  <label
+                    className={`flex items-center gap-3 p-4 border cursor-pointer transition-colors ${
+                      paymentMethod === "CASH"
+                        ? "border-[#1A1410] bg-[rgba(26,20,16,0.03)]"
+                        : "border-[rgba(26,20,16,0.1)]"
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        paymentMethod === "CASH"
+                          ? "border-[#1A1410]"
+                          : "border-[rgba(26,20,16,0.3)]"
                       }`}
                     >
-                      <div
-                        className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                          paymentMethod === method.id
-                            ? "border-[#1A1410]"
-                            : "border-[rgba(26,20,16,0.3)]"
-                        }`}
-                      >
-                        {paymentMethod === method.id && (
-                          <div className="w-2.5 h-2.5 rounded-full bg-[#1A1410]" />
-                        )}
-                      </div>
-                      <span className="font-body text-sm text-[#1A1410]">
-                        {method.name}
-                      </span>
-                      <input
-                        type="radio"
-                        name="payment"
-                        value={method.id}
-                        checked={paymentMethod === method.id}
-                        onChange={() => setPaymentMethod(method.id)}
-                        className="sr-only"
-                      />
-                    </label>
-                  ))}
+                      {paymentMethod === "CASH" && (
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#1A1410]" />
+                      )}
+                    </div>
+                    <span className="font-body text-sm text-[#1A1410]">
+                      Cash on Delivery
+                    </span>
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="CASH"
+                      checked={paymentMethod === "CASH"}
+                      onChange={() => setPaymentMethod("CASH")}
+                      className="sr-only"
+                    />
+                  </label>
+                  <label
+                    className={`flex items-center gap-3 p-4 border cursor-pointer transition-colors ${
+                      paymentMethod === "card"
+                        ? "border-[#1A1410] bg-[rgba(26,20,16,0.03)]"
+                        : "border-[rgba(26,20,16,0.1)]"
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        paymentMethod === "card"
+                          ? "border-[#1A1410]"
+                          : "border-[rgba(26,20,16,0.3)]"
+                      }`}
+                    >
+                      {paymentMethod === "card" && (
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#1A1410]" />
+                      )}
+                    </div>
+                    <span className="font-body text-sm text-[#1A1410]">
+                      Credit / Debit Card
+                    </span>
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="card"
+                      checked={paymentMethod === "card"}
+                      onChange={() => setPaymentMethod("card")}
+                      className="sr-only"
+                    />
+                  </label>
                 </div>
               </div>
             </ScrollReveal>
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || calculating}
               className="btn-primary w-full disabled:opacity-70"
             >
-              {loading ? "Processing..." : `Complete Order — $${total}`}
+              {loading ? "Processing..." : `Complete Order — ${store?.currency || "$"} ${total}`}
             </button>
           </form>
 
@@ -300,7 +404,7 @@ export function Checkout() {
                         </p>
                       </div>
                       <span className="font-display text-sm font-semibold text-[#1A1410]">
-                        ${price * item.quantity}
+                        {item.product.currency} {price * item.quantity}
                       </span>
                     </div>
                   );
@@ -320,12 +424,18 @@ export function Checkout() {
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between font-body text-sm">
                   <span className="text-taupe">Subtotal</span>
-                  <span className="text-[#1A1410]">${totalPrice}</span>
+                  <span className="text-[#1A1410]">{store?.currency} {cartSubtotal}</span>
                 </div>
                 <div className="flex justify-between font-body text-sm">
                   <span className="text-taupe">Shipping</span>
-                  <span className="text-[#1A1410]">${shipping}</span>
+                  <span className="text-[#1A1410]">{store?.currency} {shipping}</span>
                 </div>
+                {priceData?.discount && priceData.discount > 0 && (
+                  <div className="flex justify-between font-body text-sm">
+                    <span className="text-taupe">Discount</span>
+                    <span className="text-green-600">-{store?.currency} {priceData.discount}</span>
+                  </div>
+                )}
               </div>
               <div className="border-t border-[rgba(26,20,16,0.1)] pt-3">
                 <div className="flex justify-between">
@@ -333,7 +443,7 @@ export function Checkout() {
                     Total
                   </span>
                   <span className="font-display text-2xl font-semibold text-[#1A1410]">
-                    ${total}
+                    {store?.currency} {total}
                   </span>
                 </div>
               </div>

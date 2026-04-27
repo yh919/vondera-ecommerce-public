@@ -3,6 +3,13 @@ import type {
   VonderaCategory,
   VonderaCart,
   VonderaStore,
+  VonderaCustomer,
+  VonderaWishlist,
+  OrderPriceCalculation,
+  CheckoutInitResponse,
+  DiscountValidationResponse,
+  StoreBuilderSettings,
+  VonderaOrder,
 } from "@/types";
 import {
   getMockProducts,
@@ -32,12 +39,23 @@ function getApiKey(): string | null {
   );
 }
 
+function getToken(): string | null {
+  return localStorage.getItem("vondera-token");
+}
+
+export function setToken(token: string | null): void {
+  if (token) {
+    localStorage.setItem("vondera-token", token);
+  } else {
+    localStorage.removeItem("vondera-token");
+  }
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options?: RequestInit,
 ): Promise<{ status: number; message: string; data: T }> {
   if (DEMO_MODE) {
-    // Return mock data based on endpoint
     throw new Error("Demo mode - use mock functions directly");
   }
 
@@ -46,14 +64,27 @@ async function apiRequest<T>(
     throw new Error("API key not configured");
   }
 
+  const token = getToken();
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    "x-api-key": apiKey,
+    userid: getUserId(),
+  });
+
+  if (options?.headers) {
+    const customHeaders = new Headers(options.headers);
+    customHeaders.forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      userid: getUserId(),
-      ...options?.headers,
-    },
+    headers,
   });
 
   if (!res.ok) {
@@ -252,4 +283,142 @@ export function setApiKey(key: string): void {
 
 export function isDemoMode(): boolean {
   return DEMO_MODE;
+}
+
+// --- Customer APIs ---
+
+export async function login(credentials: Record<string, string>): Promise<{ user: VonderaCustomer; token: string }> {
+  if (DEMO_MODE) throw new Error("Login not supported in demo mode");
+  const res = await apiRequest<{ user: VonderaCustomer; token: string }>("/customer/login", {
+    method: "POST",
+    body: JSON.stringify(credentials),
+  });
+  setToken(res.data.token);
+  return res.data;
+}
+
+export async function signup(data: Record<string, unknown>): Promise<VonderaCustomer> {
+  if (DEMO_MODE) throw new Error("Signup not supported in demo mode");
+  const res = await apiRequest<{ customer: VonderaCustomer }>("/customer/signup", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return res.data.customer;
+}
+
+export async function fetchProfile(): Promise<VonderaCustomer> {
+  if (DEMO_MODE) throw new Error("Profile not supported in demo mode");
+  const res = await apiRequest<VonderaCustomer>("/customer/");
+  return res.data;
+}
+
+export async function fetchCustomerOrders(): Promise<VonderaOrder[]> {
+  if (DEMO_MODE) return [];
+  const res = await apiRequest<VonderaOrder[]>("/customer/orders");
+  return res.data;
+}
+
+// --- Wishlist APIs ---
+
+export async function fetchWishlist(page = 1, limit = 12): Promise<VonderaWishlist> {
+  if (DEMO_MODE) return { items: [], isLastPage: true, nextPageNumber: null, currentPage: 1, totalPages: 1 };
+  const res = await apiRequest<VonderaWishlist>(`/customer/wishlist?page=${page}&limit=${limit}`);
+  return res.data;
+}
+
+export async function addToWishlist(productId: string): Promise<void> {
+  if (DEMO_MODE) return;
+  await apiRequest("/customer/wishlist", {
+    method: "POST",
+    body: JSON.stringify({ productId }),
+  });
+}
+
+export async function removeFromWishlist(productId: string): Promise<void> {
+  if (DEMO_MODE) return;
+  await apiRequest("/customer/wishlist", {
+    method: "DELETE",
+    body: JSON.stringify({ productId }),
+  });
+}
+
+// --- Checkout & Order APIs ---
+
+export async function initCheckout(data: Record<string, unknown>): Promise<CheckoutInitResponse> {
+  if (DEMO_MODE) return {};
+  const res = await apiRequest<CheckoutInitResponse>("/orders/init-checkout", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return res.data;
+}
+
+export async function validateDiscount(code: string): Promise<DiscountValidationResponse> {
+  if (DEMO_MODE) return { valid: true, message: "Demo discount applied", discountAmount: 10, discountType: 'amount' };
+  const res = await apiRequest<DiscountValidationResponse>("/orders/discount/validate", {
+    method: "POST",
+    body: JSON.stringify({ discountCode: code }),
+  });
+  return res.data;
+}
+
+export async function calculateOrderPrice(data: Record<string, unknown>): Promise<OrderPriceCalculation> {
+  if (DEMO_MODE) {
+    return {
+      itemsPrice: 100,
+      shippingFees: 10,
+      discount: 0,
+      gatewayFees: 0,
+      totalTaxes: 0,
+      totalPrice: 110,
+      amountToPayLater: 0,
+      autoApplyPromo: null
+    };
+  }
+  const res = await apiRequest<OrderPriceCalculation>("/orders/price", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return res.data;
+}
+
+export async function createOrder(orderData: Record<string, unknown>): Promise<VonderaOrder> {
+  if (DEMO_MODE) {
+    return {
+      id: "mock-order-id",
+      status: "Pending",
+      date: { _seconds: Date.now() / 1000, _nanoseconds: 0 },
+      products: [],
+      customer: { 
+        name: String(orderData.name || ""), 
+        phone: String(orderData.phone || ""), 
+        address: String(orderData.address || "") 
+      }
+    };
+  }
+  const res = await apiRequest<VonderaOrder>("/orders", {
+    method: "POST",
+    body: JSON.stringify(orderData),
+  });
+  return res.data;
+}
+
+// --- Store Content APIs ---
+
+export async function fetchBuilderSettings(withDraft = "false"): Promise<StoreBuilderSettings> {
+  if (DEMO_MODE) return { updatedAt: new Date().toISOString(), sections: [] };
+  const res = await apiRequest<StoreBuilderSettings>(`/store/builder/settings?withDraft=${withDraft}`);
+  return res.data;
+}
+
+export async function fetchSitemap(): Promise<unknown[]> {
+  if (DEMO_MODE) return [];
+  const res = await apiRequest<unknown[]>("/store/sitemap");
+  return res.data;
+}
+
+export async function fetchFunnel(linkId: string): Promise<unknown> {
+  if (DEMO_MODE) return null;
+  const res = await apiRequest<unknown>(`/funnels/${linkId}`);
+  return res.data;
 }
